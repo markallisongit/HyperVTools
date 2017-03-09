@@ -14,7 +14,7 @@ node {
         stage('remove') {
             gitlabCommitStatus("remove") {
                 timeout(time: 5, unit: 'MINUTES') {
-                    bat 'powershell Import-Module .\\HyperVTools.psd1; Remove-HyperVVM -VMHostName %VM_HOST% -VMName \'%VM_NAME%\' -Verbose'                
+                    bat 'powershell Import-Module .\\HyperVTools.psd1; Remove-HyperVVM -VMHostName %VM_HOST% -VMName \'%VM_NAME%\' -HyperVAdminCredentials D:\\Jenkins\\DomainAdminCredentials.xml -Verbose'
                 }
             }
         }

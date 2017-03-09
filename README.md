@@ -19,7 +19,7 @@ Tested on:
  * **-Verbose**: Verbose output
 
 ### Example
-`New-HyperVVM -ConfigFile \\FILESERVER\VMConfigs\MyVMConfig.json \\FILESERVER\Credentials\HyperVAdminCredentials.xml -Verbose`. Creates a new VM with verbose output.
+`New-HyperVVM -ConfigFile \\FILESERVER\VMConfigs\MyVMConfig.json -Verbose`. Creates a new VM with verbose output.
 
 ## Remove-HyperVVM
  * **-VMHostName**: The name of the Hyper-V Host where the VM resides
@@ -28,7 +28,7 @@ Tested on:
  * **-Verbose**: Verbose output
 
 ### Example
-`Remove-HyperVVM -VMHostName HyperV -VMName MyVM -Verbose`. Deletes the VM *MyVM* from Hyper-V host *HyperV* including all VHDs with verbose output.
+`Remove-HyperVVM -VMHostName HyperV -VMName MyVM -HyperVAdminCredentialsPath \\FILESERVER\Credentials\HyperVAdminCredentials.xml -Verbose`. Deletes the VM *MyVM* from Hyper-V host *HyperV* including all VHDs with verbose output.
 
 # Requirements
 **Important please read or the tool will likely fail.**
@@ -131,7 +131,7 @@ See examples section below for example configurations. These can be placed in ei
 }
 ```
 ## -ConfigFilePath
-## <VMName>.json
+## VMName.json
 This is an example for building a Windows Server 2016 VM. Values in here will *overwrite* anything specified in Common-Config.json.
 ```
 {
