@@ -55,12 +55,13 @@ PROCESS
 {
     $ErrorActionPreference = "Stop"
     $verbose = $VerbosePreference -ne 'SilentlyContinue'
+    $retryTimes = 3
 
     if([string]::IsNullOrEmpty($JenkinsPath))
     {
         $JenkinsPath = "D:\Jenkins"
     }
-    
+    $tries = 0
     $HyperVAdminCredentials = Read-CredentialsFromFile $HyperVAdminCredentialsPath
     if (Test-HyperVVM -VMHost $VMHostName -VMName $VMName -Credential $HyperVAdminCredentials )
     {
@@ -80,13 +81,33 @@ PROCESS
         $NumDisks = Invoke-Command -Session $VMHostSession { (Get-VMHardDiskDrive -VMName $using:VMName).Count }
         Write-Verbose "$(Get-Date -Format u) Found $NumDisks hard disks on $VMName"
         
-        Write-Verbose "$(Get-Date -Format u) Merging Checkpoints"    
-        Invoke-Command -Session $VMHostSession { Get-VM $using:vmname| Stop-VM -Passthru | Get-VMSnapshot | Remove-VMSnapshot }
-        while ((Invoke-Command -Session $VMHostSession { (Get-VM $using:vmname|Get-VMSnapshot).Count }) -gt 0) { Start-Sleep -seconds 1}
+        Write-Verbose "$(Get-Date -Format u) Merging Checkpoints"
+        try {
+            $tries++
+            Invoke-Command -Session $VMHostSession { Get-VM $using:vmname| Stop-VM -Passthru | Get-VMSnapshot | Remove-VMSnapshot }
+            while ((Invoke-Command -Session $VMHostSession { (Get-VM $using:vmname|Get-VMSnapshot).Count }) -gt 0) { Start-Sleep -seconds 1 }            
+            while ((Invoke-Command -Session $VMHostSession { (Get-VM $using:vmname).Status }) -eq "Merging disks") { Start-Sleep -seconds 1 }
+        }
+        catch {
+            Write-Error "Failed to Stop VM and take a checkpoint. "
+            if ($tries -le $retryTimes)
+            {
+                Write-Warning "Failed to stop and take a checkpoint. Trying the remove again. $tries tries out of $retryTimes"
+                Remove-HyperVVM -VMHostName $VMHostName -VMName $VMName -HyperVAdminCredentialsPath $HyperVAdminCredentialsPath
+            }
+            throw
+        }    
 
-        Write-Verbose "$(Get-Date -Format u) Deleting hard disk files"
-        Invoke-Command -Session $VMHostSession { Get-VM $using:VMName | GET-VMHardDiskDrive | ForEach-Object { Remove-item -Path $_.Path } }
-
+        # Start-Sleep -seconds 5 # make sure that the checkpoint really has finished
+        try {
+            Write-Verbose "$(Get-Date -Format u) Deleting hard disk files"
+            Invoke-Command -Session $VMHostSession { Get-VM $using:VMName | Get-VMHardDiskDrive | ForEach-Object { Remove-item -Path $_.Path -Force } }
+        }
+        catch
+        {
+            # ignore
+        }
+    
         Write-Verbose "$(Get-Date -Format u) Deleting VM $VMName"
         Invoke-Command -Session $VMHostSession { Remove-VM $using:VMName -Confirm:$false -Force }    
     }
