@@ -11,4 +11,3 @@ NewVHD/*
 CreateBaseVM/*
 .vscode/*
 DeleteVM.txt
-install.ps1
