@@ -137,7 +137,9 @@ PROCESS
         if($DataVHDMaxSize -and $DataVHDPath)
         {
             Write-Verbose "Creating drive for data"
-            New-DataVHD $HyperVAdminCredential $VMHostName $VMName $DataVHDPath $DataVHDMaxSize
+            $VHDName = "$VMName-Data"
+            NewVHD -VMHostName $VMHostName -Name $VHDName -Path $Path -MaximumSize $MaximumSize
+            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Credential $Credential -Force            
 
             if($DataVHDPath)
             {
@@ -230,25 +232,11 @@ PROCESS
         if ($Version2012OrLater)
         {
             Write-Verbose "Configuring VM $MachineName"
-            Initialize-VM $HyperVAdminCredential $MachineName $IsCore $SNMPManager $SNMPCommunity
+            ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
+            Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Credential $Credential -Force            
         }
 
-        Write-Verbose "Removing old mof files"
-        if (Test-Path "$workingdir\CreateBaseVM")
-        {
-            Write-Verbose "Removing $workingdir\CreateBaseVM"
-            Remove-Item -Path "$workingdir\CreateBaseVM" -Recurse -Force -Confirm:$false
-        }
-        if (Test-Path "$workingdir\ServerConfig")
-        {
-            Write-Verbose "Removing $workingdir\ServerConfig"
-            Remove-Item -Path "$workingdir\ServerConfig" -Recurse -Force -Confirm:$false
-        }
-        if (Test-Path "$workingdir\NewVHD")
-        {
-            Write-Verbose "Removing $workingdir\NewVHD"
-            Remove-Item -Path "$workingdir\NewVHD" -Recurse -Force -Confirm:$false
-        }
+
 
         if($DataVHDMaxSize)
         {
@@ -337,14 +325,33 @@ PROCESS
         if(Get-PSDrive -Name TargetSystemImage -ErrorAction SilentlyContinue) 
         {
             Remove-PSDrive -Name TargetSystemImage
-        }
+        }        
         throw
     }
     finally {
+        Write-Verbose "Removing old mof files"
+        if (Test-Path ".\CreateBaseVM")
+        {
+            Write-Verbose "Removing $workingdir\CreateBaseVM"
+            Remove-Item -Path ".\CreateBaseVM" -Recurse -Force -Confirm:$false
+        }
+        if (Test-Path ".\ServerConfig")
+        {
+            Write-Verbose "Removing .\ServerConfig"
+            Remove-Item -Path ".\ServerConfig" -Recurse -Force -Confirm:$false
+        }
+        if (Test-Path ".\NewVHD")
+        {
+            Write-Verbose "Removing .\NewVHD"
+            Remove-Item -Path ".\NewVHD" -Recurse -Force -Confirm:$false
+        }
+
         if ($TrustedHosts)
         {
+            
             Write-Verbose "Resetting TrustedHosts"
             $TrustedHosts | ForEach-Object {Set-Item -Path WSMan:\localhost\Client\TrustedHosts -Value $_.ToString() -Force}     
+
         }
     }
 }    
