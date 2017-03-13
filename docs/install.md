@@ -14,5 +14,6 @@ This will install HyperVTools locally for the current user to Documents\WindowsP
 ```
 Invoke-WebRequest https://github.com/markallisongit/HyperVTools/archive/master.zip -OutFile HyperVTools.zip
 Expand-Archive HyperVTools.zip -DestinationPath .
-Import-Module .\HyperVTools\HyperVTools.psd1```
+Import-Module .\HyperVTools\HyperVTools.psd1
+```
 
