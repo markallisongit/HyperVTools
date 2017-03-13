@@ -63,7 +63,7 @@ Once prepared, put the images somewhere like `\\FILESERVER\GoldenImages\<OS_Name
 A windows domain where the Hyper-V host is joined to and where the VM is deployed to is required. This may be extended to workgroups in the future.
 
 # Installation
-See the [install page](https://github.com/markallisongit/HyperVTools/tree/master/docs/install.md) in the docs folder for instructions.
+See the [install page](/docs/install.md) in the docs folder for instructions.
 
 # Config
 
