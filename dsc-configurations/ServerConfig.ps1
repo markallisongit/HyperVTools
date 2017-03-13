@@ -43,10 +43,12 @@ Configuration ServerConfig
                 IncludeAllSubFeature = $true
             }
 
-            WindowsFeature SNMPRSAT {
-                Ensure = 'Present'
-                Name = 'RSAT-SNMP'           
-                DependsOn = "[WindowsFeature]SNMPService"
+            if ($IsCore -eq "N") {
+                WindowsFeature SNMPRSAT {
+                    Ensure = 'Present'
+                    Name = 'RSAT-SNMP'           
+                    DependsOn = "[WindowsFeature]SNMPService"
+                }
             }
 
             Registry ConfigureSNMPPermittedManagers

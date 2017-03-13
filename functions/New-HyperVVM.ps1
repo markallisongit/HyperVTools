@@ -236,8 +236,6 @@ PROCESS
             Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Credential $Credential -Force            
         }
 
-
-
         if($DataVHDMaxSize)
         {
             if($Version2012OrLater)
@@ -261,13 +259,15 @@ PROCESS
             {
                 Write-Verbose "Copying bginfo config to VM"
                 Copy-Item -Path "$workingdir\configs\BGInfoConfig.bgi" -Destination "\\$MachineName\c$\ProgramData\chocolatey\lib\bginfo\tools"
-
-                Write-Verbose "Creating BgInfo logon task"
-                Invoke-Command -ComputerName $MachineName -Credential $HyperVAdminCredential -ScriptBlock {
-                    $libDir = "$env:ProgramData\chocolatey\lib\bginfo\tools"                    
-                    $action = New-ScheduledTaskAction -Execute "$libDir\bginfo.exe" -Argument "$libDir\BGInfoConfig.bgi /TIMER:0 /silent /accepteula" -WorkingDirectory $libDir;
-                    $trigger =  New-ScheduledTaskTrigger -AtLogOn;
-                    Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'BgInfo' -Description 'Paint bginfo'
+                if ($Version2012OrLater)
+                {
+                    Write-Verbose "Creating BgInfo logon task"
+                    Invoke-Command -ComputerName $MachineName -Credential $HyperVAdminCredential -ScriptBlock {
+                        $libDir = "$env:ProgramData\chocolatey\lib\bginfo\tools"                    
+                        $action = New-ScheduledTaskAction -Execute "$libDir\bginfo.exe" -Argument "$libDir\BGInfoConfig.bgi /TIMER:0 /silent /accepteula" -WorkingDirectory $libDir;
+                        $trigger =  New-ScheduledTaskTrigger -AtLogOn;
+                        Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'BgInfo' -Description 'Paint bginfo'
+                    }
                 }
             }              
         }
@@ -316,6 +316,7 @@ PROCESS
         }
     }
     catch {
+        Write-Error "Error: $?"
     <#
         TODO
         check if VM was created

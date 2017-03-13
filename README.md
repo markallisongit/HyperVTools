@@ -62,6 +62,9 @@ Once prepared, put the images somewhere like `\\FILESERVER\GoldenImages\<OS_Name
 ## Windows domain
 A windows domain where the Hyper-V host is joined to and where the VM is deployed to is required. This may be extended to workgroups in the future.
 
+# Installation
+See the [install page](https://github.com/markallisongit/HyperVTools/tree/master/docs/install.md) in the docs folder for instructions.
+
 # Config
 
 ## Per VM
@@ -188,3 +191,6 @@ The above two configs will result in an effective configuration that looks like 
 }
 ```
 You do not need to create the effective configuration, the tool will combine Common-Config and the ConfigFilePath configuration. This is just to illustrate what the final effective configuration would be in this example.
+
+# Limitations
+See the [limitations page](https://github.com/markallisongit/HyperVTools/tree/master/docs/limitations.md) in the docs folder for details.
