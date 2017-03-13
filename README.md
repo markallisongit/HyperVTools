@@ -193,4 +193,4 @@ The above two configs will result in an effective configuration that looks like 
 You do not need to create the effective configuration, the tool will combine Common-Config and the ConfigFilePath configuration. This is just to illustrate what the final effective configuration would be in this example.
 
 # Limitations
-See the [limitations page](https://github.com/markallisongit/HyperVTools/tree/master/docs/limitations.md) in the docs folder for details.
+See the [limitations page](/docs/limitations.md) in the docs folder for details.
