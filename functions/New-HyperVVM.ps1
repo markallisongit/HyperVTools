@@ -91,17 +91,20 @@ PROCESS
         "VM_HOST=`"$VMHostName`"" | Out-File -FilePath "DeleteVM.txt" -Force -Encoding ASCII
         "VM_NAME=`"$VMName`"" | Out-File -FilePath "DeleteVM.txt" -Append -Encoding ASCII
 
-        Write-Verbose "Reading admin credentials from credentials files"
         $HyperVAdminCredential = Read-CredentialsFromFile $HyperVAdminCredentialsPath  
         $GoldenImageAdminCredential = Read-CredentialsFromFile $GoldenImageAdminCredentialsPath
 
+        Write-Verbose "Creating admin session to Hyper-V host $VMHostName"
         $VMHostSession = New-PSSession -ComputerName $VMHostName -Credential $HyperVAdminCredential -Name "VMHostSession"     # create an admin session to the VMHost
+        
+        Write-Verbose "Checking to see if $VMName already exists on $VMHostName"
         if(Test-HyperVVM $VMHostName $VMName $HyperVAdminCredential)
         {
             throw "VM $VMName already exists on host $VMHostName. Choose a different name."
         }
        
         $TargetPath = "\\$VMHostName\" + $VHDPath.Replace(':','$') # connect directly outside of Invoke-Command so we don't need to set up delegation
+        Write-Verbose "Target path for TargetSystemImage drive: $TargetPath"
         New-PSDrive -Name TargetSystemImage -PSProvider FileSystem -Root $TargetPath -Credential $HyperVAdminCredential
         Write-Verbose "Copying image file from $VMTemplatePath to $TargetPath\$VMName-System.vhdx"
         if(Test-Path "TargetSystemImage:\$VMName-System.vhdx")

@@ -128,7 +128,8 @@ See examples section below for example configurations. These can be placed in ei
     "InstallChocolatey" : "Y",
     "ChocolateyPackages" : [
         "nettime",
-        "bginfo"
+        "bginfo",
+        "sysinternals"
     ],
     "DisableTimeSynchronization" : "Y"
 }
