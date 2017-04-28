@@ -40,15 +40,12 @@ Creates a new VM with the configuration specified in file \\FILESERVER\VMConfigs
 param 
 (
     [Parameter(Position = 0, Mandatory = $true)]
-    [string]$ConfigFilePath = $( throw 'ConfigFile is required' )
+    [string]$ConfigFilePath
 )
 
 
 PROCESS
 {
-    $ErrorActionPreference = "Stop"
-    $verbose = $VerbosePreference -ne 'SilentlyContinue'
-
     try {
         Write-Verbose "Determining if PowerShell is running as an Admin." 
         if(! (Test-PSUserIsAdmin))
@@ -65,8 +62,8 @@ PROCESS
         Write-Verbose "Reading common config file from $CommonConfigFilePath"        
         $CommonConfig = Get-Content $CommonConfigFilePath | ConvertFrom-Json 
 
-        Write-Verbose "Reading $ConfigFile config file"
-        $Config = Get-Content "$ConfigFilePath" | ConvertFrom-Json 
+        Write-Verbose "Reading $ConfigFilePath config file"
+        $Config = Get-Content $ConfigFilePath | ConvertFrom-Json 
 
         Write-Verbose "Configuring config variables"
         [string[]]$variables = ($Config | get-member -Name * -MemberType NoteProperty).Name
@@ -82,7 +79,7 @@ PROCESS
                 Set-Variable -name $v -value ($CommonConfig.$v) -Force -Verbose:$verbose 
             }
         }
-
+        
         Write-Verbose "Validating attributes in config files"
         Test-Configuration $variables
 
@@ -319,7 +316,7 @@ PROCESS
         }
     }
     catch {
-        Write-Error "Error: $?"
+        Write-Verbose "Error: $?"
     <#
         TODO
         check if VM was created

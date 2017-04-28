@@ -14,7 +14,7 @@ node {
         stage('deploy') {
             gitlabCommitStatus("deploy") {
                 timeout(time: 30, unit: 'MINUTES') {
-                    bat 'powershell Import-Module .\\HyperVTools.psd1; New-HyperVVM -ConfigFilePath \'%ConfigFilePath%\' -Verbose'                
+                    bat 'powershell -Command Import-Module .\\HyperVTools.psd1 -Force; New-HyperVVM -ConfigFilePath \'%ConfigFilePath%\' -Verbose'                
                     load 'DeleteVM.txt' // loads into environment variables
                     echo "VM host: ${VM_HOST}"
                     echo "VM name: ${VM_NAME}"
