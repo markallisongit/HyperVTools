@@ -139,7 +139,7 @@ PROCESS
             Write-Verbose "Creating drive for data at $DataVHDPath, maxsize $DataVHDMaxSize"
             $VHDName = "$VMName-Data"
             NewVHD -VMHostName $VMHostName -Name $VHDName -Path $DataVHDPath -MaximumSize ($DataVHDMaxSize/[uint64]1)
-            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Credential $Credential -Force            
+            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Credential $HyperVAdminCredential -Force            
 
             if($DataVHDPath)
             {
