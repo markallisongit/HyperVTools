@@ -11,3 +11,4 @@ NewVHD/*
 CreateBaseVM/*
 .vscode/*
 DeleteVM.txt
+ServerConfig/*

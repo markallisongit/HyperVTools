@@ -40,15 +40,12 @@ Creates a new VM with the configuration specified in file \\FILESERVER\VMConfigs
 param 
 (
     [Parameter(Position = 0, Mandatory = $true)]
-    [string]$ConfigFilePath = $( throw 'ConfigFile is required' )
+    [string]$ConfigFilePath
 )
 
 
 PROCESS
 {
-    $ErrorActionPreference = "Stop"
-    $verbose = $VerbosePreference -ne 'SilentlyContinue'
-
     try {
         Write-Verbose "Determining if PowerShell is running as an Admin." 
         if(! (Test-PSUserIsAdmin))
@@ -65,8 +62,8 @@ PROCESS
         Write-Verbose "Reading common config file from $CommonConfigFilePath"        
         $CommonConfig = Get-Content $CommonConfigFilePath | ConvertFrom-Json 
 
-        Write-Verbose "Reading $ConfigFile config file"
-        $Config = Get-Content "$ConfigFilePath" | ConvertFrom-Json 
+        Write-Verbose "Reading $ConfigFilePath config file"
+        $Config = Get-Content $ConfigFilePath | ConvertFrom-Json 
 
         Write-Verbose "Configuring config variables"
         [string[]]$variables = ($Config | get-member -Name * -MemberType NoteProperty).Name
@@ -82,7 +79,7 @@ PROCESS
                 Set-Variable -name $v -value ($CommonConfig.$v) -Force -Verbose:$verbose 
             }
         }
-
+        
         Write-Verbose "Validating attributes in config files"
         Test-Configuration $variables
 
@@ -91,17 +88,20 @@ PROCESS
         "VM_HOST=`"$VMHostName`"" | Out-File -FilePath "DeleteVM.txt" -Force -Encoding ASCII
         "VM_NAME=`"$VMName`"" | Out-File -FilePath "DeleteVM.txt" -Append -Encoding ASCII
 
-        Write-Verbose "Reading admin credentials from credentials files"
         $HyperVAdminCredential = Read-CredentialsFromFile $HyperVAdminCredentialsPath  
         $GoldenImageAdminCredential = Read-CredentialsFromFile $GoldenImageAdminCredentialsPath
 
+        Write-Verbose "Creating admin session to Hyper-V host $VMHostName"
         $VMHostSession = New-PSSession -ComputerName $VMHostName -Credential $HyperVAdminCredential -Name "VMHostSession"     # create an admin session to the VMHost
+        
+        Write-Verbose "Checking to see if $VMName already exists on $VMHostName"
         if(Test-HyperVVM $VMHostName $VMName $HyperVAdminCredential)
         {
             throw "VM $VMName already exists on host $VMHostName. Choose a different name."
         }
        
         $TargetPath = "\\$VMHostName\" + $VHDPath.Replace(':','$') # connect directly outside of Invoke-Command so we don't need to set up delegation
+        Write-Verbose "Target path for TargetSystemImage drive: $TargetPath"
         New-PSDrive -Name TargetSystemImage -PSProvider FileSystem -Root $TargetPath -Credential $HyperVAdminCredential
         Write-Verbose "Copying image file from $VMTemplatePath to $TargetPath\$VMName-System.vhdx"
         if(Test-Path "TargetSystemImage:\$VMName-System.vhdx")
@@ -139,7 +139,7 @@ PROCESS
             Write-Verbose "Creating drive for data at $DataVHDPath, maxsize $DataVHDMaxSize"
             $VHDName = "$VMName-Data"
             NewVHD -VMHostName $VMHostName -Name $VHDName -Path $DataVHDPath -MaximumSize ($DataVHDMaxSize/[uint64]1)
-            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Credential $Credential -Force            
+            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Credential $HyperVAdminCredential -Force            
 
             if($DataVHDPath)
             {
@@ -316,7 +316,7 @@ PROCESS
         }
     }
     catch {
-        Write-Error "Error: $?"
+        Write-Verbose "Error: $?"
     <#
         TODO
         check if VM was created
