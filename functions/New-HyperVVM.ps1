@@ -10,6 +10,10 @@ Creates a new Hyper-V virtual machine with a standard configuration which is def
 .PARAMETER ConfigFilePath
 The path to the JSON configuration file with a set of options for the VM build.
 
+.PARAMETER AdministratorPassword
+[securestring] 
+The password of the local administrator account for the image. This is required for login before domain join.
+
 .PARAMETER Verbose
 Shows details of the build, if omitted minimal information is output.
 
@@ -17,7 +21,7 @@ Shows details of the build, if omitted minimal information is output.
 Author: Mark Allison
 
 Requires: 
-    Admin rights on the Hyper-V host. Can be specified as an encrypted xml file.
+    Admin rights on the Hyper-V host.
     Sysprepped Golden images for the operating systems you want to build.
     Admin passwords for the golden images.
 
@@ -40,7 +44,9 @@ Creates a new VM with the configuration specified in file \\FILESERVER\VMConfigs
 param 
 (
     [Parameter(Position = 0, Mandatory = $true)]
-    [string]$ConfigFilePath
+    [string]$ConfigFilePath,
+    [Parameter(Position = 1, Mandatory = $true)]
+    [securestring]$AdministratorPassword
 )
 
 
@@ -84,33 +90,38 @@ PROCESS
         Test-Configuration $variables
 
         # consider removing these lines
-        Write-Verbose "Writing $VMName to file DeleteVM.txt for use in delete step, if required. Used for Jenkins builds"
-        "VM_HOST=`"$VMHostName`"" | Out-File -FilePath "DeleteVM.txt" -Force -Encoding ASCII
-        "VM_NAME=`"$VMName`"" | Out-File -FilePath "DeleteVM.txt" -Append -Encoding ASCII
+#         Write-Verbose "Writing $VMName to file DeleteVM.txt for use in delete step, if required. Used for Jenkins builds"
+#        "VM_HOST=`"$VMHostName`"" | Out-File -FilePath "DeleteVM.txt" -Force -Encoding ASCII
+#        "VM_NAME=`"$VMName`"" | Out-File -FilePath "DeleteVM.txt" -Append -Encoding ASCII
 
-        $HyperVAdminCredential = Read-CredentialsFromFile $HyperVAdminCredentialsPath  
-        $GoldenImageAdminCredential = Read-CredentialsFromFile $GoldenImageAdminCredentialsPath
+#        $GoldenImageAdminCredential = Read-CredentialsFromFile $GoldenImageAdminCredentialsPath
+        $GoldenImageAdminCredential=New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList ('Administrator', $AdministratorPassword)
 
         Write-Verbose "Creating admin session to Hyper-V host $VMHostName"
-        $VMHostSession = New-PSSession -ComputerName $VMHostName -Credential $HyperVAdminCredential -Name "VMHostSession"     # create an admin session to the VMHost
+        $VMHostSession = New-PSSession -ComputerName $VMHostName -Name "VMHostSession"     # create an admin session to the VMHost
         
         Write-Verbose "Checking to see if $VMName already exists on $VMHostName"
-        if(Test-HyperVVM $VMHostName $VMName $HyperVAdminCredential)
+        if(Test-HyperVVM $VMHostName $VMName)
         {
             throw "VM $VMName already exists on host $VMHostName. Choose a different name."
         }
        
-        $TargetPath = "\\$VMHostName\" + $VHDPath.Replace(':','$') # connect directly outside of Invoke-Command so we don't need to set up delegation
-        Write-Verbose "Target path for TargetSystemImage drive: $TargetPath"
-        New-PSDrive -Name TargetSystemImage -PSProvider FileSystem -Root $TargetPath -Credential $HyperVAdminCredential
-        Write-Verbose "Copying image file from $VMTemplatePath to $TargetPath\$VMName-System.vhdx"
+        # $TargetPath = "\\$VMHostName\" + $VHDPath.Replace(':','$') # connect directly outside of Invoke-Command so we don't need to set up delegation
+        # Write-Verbose "Target path for TargetSystemImage drive: $TargetPath"
+        # New-PSDrive -Name TargetSystemImage -PSProvider FileSystem -Root $TargetPath
+
+
+        Write-Verbose "Copying image file from $VMTemplatePath to $VHDPath"
         if(Test-Path "TargetSystemImage:\$VMName-System.vhdx")
         {
             throw "$TargetPath\$VMName-System.vhdx already exists"
         }
 
-        Copy-Item -Path $VMTemplatePath -Destination "TargetSystemImage:\$VMName-System.vhdx"
-        Remove-PSDrive -Name TargetSystemImage
+        Invoke-Command -ComputerName $VMHostName -scriptblock {
+            $FileName = $using:VMTemplatePath | Split-Path -leaf    
+            & robocopy ($using:VMTemplatePath | Split-Path) $using:VHDPath $FileName
+            Rename-Item -Path "$using:VHDPath\$FileName" -NewName $using:VMName-System.vhdx
+        }
     
         $WaitForIp=$false
         if($Generation -eq 2) { $WaitForIp = $true }
@@ -132,14 +143,14 @@ PROCESS
             -WaitForIp:$WaitForIp `
             -State "Off" `
             -Verbose:$verbose
-        Start-DscConfiguration -Wait -Verbose -Path .\CreateBaseVM\ -Credential $HyperVAdminCredential -Force
+        Start-DscConfiguration -Wait -Verbose -Path .\CreateBaseVM\ -Force
 
         if($DataVHDMaxSize -and $DataVHDPath)
         {
             Write-Verbose "Creating drive for data at $DataVHDPath, maxsize $DataVHDMaxSize"
             $VHDName = "$VMName-Data"
             NewVHD -VMHostName $VMHostName -Name $VHDName -Path $DataVHDPath -MaximumSize ($DataVHDMaxSize/[uint64]1)
-            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Credential $HyperVAdminCredential -Force            
+            Start-DscConfiguration -Wait -Verbose -Path .\NewVHD\ -Force            
 
             if($DataVHDPath)
             {
@@ -152,7 +163,9 @@ PROCESS
         }
 
         Invoke-Command -Session $VMHostSession -ScriptBlock { Start-VM -Name $using:VMName }
-
+        if ((get-service winrm).Status -ne 'Running') {
+            Start-Service WinRM
+        }
         $TrustedHosts = Get-Item -Path WSMan:\localhost\Client\TrustedHosts -Force | Select-Object -ExpandProperty Value
 
         if($IpAddress)
@@ -226,14 +239,14 @@ PROCESS
         #>
         }
         
-        Write-Verbose "Create domain admin session to $MachineName"
-        $VMGuestSession = New-PSSession -ComputerName $MachineName -Credential $HyperVAdminCredential
+        Write-Verbose "Create admin session to $MachineName"
+        $VMGuestSession = New-PSSession -ComputerName $MachineName
 
         if ($Version2012OrLater)
         {
             Write-Verbose "Configuring VM $MachineName"
             ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
-            Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Credential $Credential -Force            
+            Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Force            
         }
 
         if($DataVHDMaxSize)
@@ -262,7 +275,7 @@ PROCESS
                 if ($Version2012OrLater)
                 {
                     Write-Verbose "Creating BgInfo logon task"
-                    Invoke-Command -ComputerName $MachineName -Credential $HyperVAdminCredential -ScriptBlock {
+                    Invoke-Command -ComputerName $MachineName -ScriptBlock {
                         $libDir = "$env:ProgramData\chocolatey\lib\bginfo\tools"                    
                         $action = New-ScheduledTaskAction -Execute "$libDir\bginfo.exe" -Argument "$libDir\BGInfoConfig.bgi /TIMER:0 /silent /accepteula" -WorkingDirectory $libDir;
                         $trigger =  New-ScheduledTaskTrigger -AtLogOn;
@@ -278,7 +291,7 @@ PROCESS
         }
 
         Write-Verbose "Shutting down so we can take a checkpoint"
-        Stop-Computer -ComputerName $MachineName -Credential $HyperVAdminCredential -Confirm:$false 
+        Stop-Computer -ComputerName $MachineName -Confirm:$false 
         do {
             Start-Sleep -Seconds 1
         } until ((Invoke-Command -Session $VMHostSession { (Get-VM -Name $using:VMName).State }).Value -eq "Off")
@@ -290,7 +303,7 @@ PROCESS
         }
     
         Write-Verbose "Taking a Checkpoint"
-        invoke-command -ComputerName $VMHostName -Credential $HyperVAdminCredential { Get-VM $using:VMName | Checkpoint-VM -SnapshotName "Initial checkpoint after auto-build" }
+        invoke-command -ComputerName $VMHostName { Get-VM $using:VMName | Checkpoint-VM -SnapshotName "Initial checkpoint after auto-build" }
         
         if($RunState -ne "Off") 
         {        
@@ -305,7 +318,7 @@ PROCESS
             }
 
             # wait for WinRM                
-            while ((Invoke-Command -ComputerName $MachineName -Credential $HyperVAdminCredential {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 1}       
+            while ((Invoke-Command -ComputerName $MachineName {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 1}       
             
             if ($Runstate -eq "Saved") {
                 Invoke-Command -Session $VMHostSession { Save-VM -Name $using:VMName }
