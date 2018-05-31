@@ -14,6 +14,10 @@ The path to the JSON configuration file with a set of options for the VM build.
 [securestring] 
 The password of the local administrator account for the image. This is required for login before domain join.
 
+.PARAMETER DomainJoinPassword
+[securestring] 
+If joining to the domain, this is the password for the account with domain join privileges. If blank, an attempt to join to the domain will not be attempted.
+
 .PARAMETER Verbose
 Shows details of the build, if omitted minimal information is output.
 
@@ -46,7 +50,9 @@ param
     [Parameter(Position = 0, Mandatory = $true)]
     [string]$ConfigFilePath,
     [Parameter(Position = 1, Mandatory = $true)]
-    [securestring]$AdministratorPassword
+    [securestring]$AdministratorPassword,
+    [Parameter(Position = 2, Mandatory = $false)]
+    [securestring]$DomainJoinPassword
 )
 
 
@@ -86,18 +92,13 @@ PROCESS
             }
         }
         
-        Write-Verbose "Validating attributes in config files"
-        Test-Configuration $variables
+        # Write-Verbose "Validating attributes in config files"
+        # Test-Configuration $variables
 
-        # consider removing these lines
-#         Write-Verbose "Writing $VMName to file DeleteVM.txt for use in delete step, if required. Used for Jenkins builds"
-#        "VM_HOST=`"$VMHostName`"" | Out-File -FilePath "DeleteVM.txt" -Force -Encoding ASCII
-#        "VM_NAME=`"$VMName`"" | Out-File -FilePath "DeleteVM.txt" -Append -Encoding ASCII
-
-#        $GoldenImageAdminCredential = Read-CredentialsFromFile $GoldenImageAdminCredentialsPath
         $GoldenImageAdminCredential=New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList ('Administrator', $AdministratorPassword)
+        $DomainJoinCred=New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList ($DomainJoinAccount, $DomainJoinPassword)
 
-        Write-Verbose "Creating admin session to Hyper-V host $VMHostName"
+        Write-Verbose "Creating session to Hyper-V host $VMHostName"
         $VMHostSession = New-PSSession -ComputerName $VMHostName -Name "VMHostSession"     # create an admin session to the VMHost
         
         Write-Verbose "Checking to see if $VMName already exists on $VMHostName"
@@ -105,11 +106,6 @@ PROCESS
         {
             throw "VM $VMName already exists on host $VMHostName. Choose a different name."
         }
-       
-        # $TargetPath = "\\$VMHostName\" + $VHDPath.Replace(':','$') # connect directly outside of Invoke-Command so we don't need to set up delegation
-        # Write-Verbose "Target path for TargetSystemImage drive: $TargetPath"
-        # New-PSDrive -Name TargetSystemImage -PSProvider FileSystem -Root $TargetPath
-
 
         Write-Verbose "Copying image file from $VMTemplatePath to $VHDPath"
         if(Test-Path "TargetSystemImage:\$VMName-System.vhdx")
@@ -117,9 +113,9 @@ PROCESS
             throw "$TargetPath\$VMName-System.vhdx already exists"
         }
 
-        Invoke-Command -ComputerName $VMHostName -scriptblock {
+        Invoke-Command -Session $VMHostSession -scriptblock {
             $FileName = $using:VMTemplatePath | Split-Path -leaf    
-            & robocopy ($using:VMTemplatePath | Split-Path) $using:VHDPath $FileName
+            & robocopy ($using:VMTemplatePath | Split-Path) $using:VHDPath $FileName /NFL /NDL /NJH /NJS /nc /ns /np
             Rename-Item -Path "$using:VHDPath\$FileName" -NewName $using:VMName-System.vhdx
         }
     
@@ -190,77 +186,54 @@ PROCESS
         Write-Verbose "Waiting for WinRM..."
         while ((Invoke-Command -ComputerName $TempIpAddress -Credential $GoldenImageAdminCredential {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 1}    
 
-        [switch]$Version2012OrLater = $false
-        $Version = Get-WindowsVersion $TempIpAddress $GoldenImageAdminCredential
-        $Version2012 = [System.Version]"6.2"
-        if($Version.CompareTo($Version2012) -gt 0) {
-            $Version2012OrLater = $true
-        }
-        Write-Verbose "Server is 2012 or later: $Version2012OrLater."
-        $Version | Format-Table -AutoSize
-
         Write-Verbose "Removing old account from AD"
-        Remove-AccountFromAD $MachineName $HyperVAdminCredential
+        Remove-AccountFromAD $MachineName $DomainJoinCred
 
         Write-Verbose "IpAddress : $IpAddress"
         if($IpAddress)
         {
-            Initialize-Network $TempIpAddress $IpAddress $DefaultGateway $DNSServers $GoldenImageAdminCredential $Version2012OrLater
+            Initialize-Network $TempIpAddress $IpAddress $DefaultGateway $DNSServers $GoldenImageAdminCredential
         }
         else {
             $IpAddress = $TempIpAddress
         }
 
         Write-Verbose "Enable ping on all profiles"
-        Enable-PingRequests $IpAddress $GoldenImageAdminCredential $Version2012OrLater
+        Invoke-Command -ComputerName $IpAddress -Credential $GoldenImageAdminCredential -ScriptBlock {Set-NetFirewallRule -name FPS-ICMP4-ERQ-In -Enabled True}        
 
         Write-Verbose "Disabling firewall for Domains"
-        Disable-Firewall $IpAddress $GoldenImageAdminCredential $Version2012OrLater
+        Invoke-Command -ComputerName $IpAddress -Credential $GoldenImageAdminCredential {Set-NetFirewallProfile -Profile Domain -Enabled False}
 
         Write-Verbose "Renaming computer to $MachineName"
-        Rename-Machine $MachineName $IpAddress $GoldenImageAdminCredential $VMHostSession $Version2012OrLater $VMName
+        Rename-Machine $MachineName $IpAddress $GoldenImageAdminCredential
 
-        $FullOU = "$OU,dc=" + $domain.Replace(".",",dc=")
-        Write-Verbose "Joining $MachineName to domain $domain in ou $FullOU"
-        Join-Domain $IpAddress $Domain $HyperVAdminCredential $FullOU $GoldenImageAdminCredential $VMHostSession $Version2012OrLater $VMName
-
-        if(! $Version2012OrLater)
-        {
-            # Write-Verbose "Moving server to correct OU"    
-            # Move-MachineToOU ($MachineName, $OU, $HyperVAdminCredential)
-            <#
-            Get-ADComputer : Cannot convert 'System.Object[]' to the type 'Microsoft.ActiveDirectory.Management.ADComputer' 
-                required by parameter 'Identity'. Specified method is not supported.
-                At C:\Program Files\WindowsPowerShell\Modules\BuildNewVM\BuildNewVM.psm1:229 char:24
-                +     if((Get-ADComputer $MachineName).DistinguishedName -notmatch $OU)
-                +                        ~~~~~~~~~~~~
-                    + CategoryInfo          : InvalidArgument: (:) [Get-ADComputer], ParentContainsErrorRecordException
-                    + FullyQualifiedErrorId : CannotConvertArgument,Microsoft.ActiveDirectory.Management.Commands.GetADComputer
-        #>
+        if (-not ([string]::IsNullOrEmpty($DomainJoinPassword))) {
+            $FullOU = "$OU,dc=" + $domain.Replace(".",",dc=")
+            Write-Verbose "Joining $MachineName to domain $domain in ou $FullOU"
+            Join-Domain $IpAddress $Domain $FullOU $DomainJoinCred $GoldenImageAdminCredential
         }
-        
+      
         Write-Verbose "Create admin session to $MachineName"
         $VMGuestSession = New-PSSession -ComputerName $MachineName
 
-        if ($Version2012OrLater)
-        {
-            Write-Verbose "Configuring VM $MachineName"
-            ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
-            Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Force            
-        }
+        Write-Verbose "Configuring VM $MachineName"
+        ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
+        Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Force            
 
         if($DataVHDMaxSize)
         {
-            if($Version2012OrLater)
-            {
-                Write-Verbose "Formatting data drive and making ready for first use"
-                Initialize-DataDrive $VMGuestSession $Version2012OrLater        
-            }
+            Write-Verbose "Formatting data drive and making ready for first use"
+            Invoke-Command -Session $Session { 
+                Get-Disk | 
+                Where-Object PartitionStyle -eq 'RAW' | 
+                Initialize-Disk -PartitionStyle GPT -PassThru | 
+                New-Partition -AssignDriveLetter -UseMaximumSize | 
+                Format-Volume -FileSystem NTFS -NewFileSystemLabel "Data" -confirm:$false }
         }
         
         if ($InstallChocolatey -eq "Y")
         {
-            Install-Chocolatey $Version2012OrLater $VMGuestSession
+            invoke-command -Session $Session { Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression }
 
             foreach ($package in $ChocolateyPackages)
             {
@@ -272,23 +245,19 @@ PROCESS
             {
                 Write-Verbose "Copying bginfo config to VM"
                 Copy-Item -Path "$workingdir\configs\BGInfoConfig.bgi" -Destination "\\$MachineName\c$\ProgramData\chocolatey\lib\bginfo\tools"
-                if ($Version2012OrLater)
-                {
-                    Write-Verbose "Creating BgInfo logon task"
-                    Invoke-Command -ComputerName $MachineName -ScriptBlock {
-                        $libDir = "$env:ProgramData\chocolatey\lib\bginfo\tools"                    
-                        $action = New-ScheduledTaskAction -Execute "$libDir\bginfo.exe" -Argument "$libDir\BGInfoConfig.bgi /TIMER:0 /silent /accepteula" -WorkingDirectory $libDir;
-                        $trigger =  New-ScheduledTaskTrigger -AtLogOn;
-                        Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'BgInfo' -Description 'Paint bginfo'
-                    }
+                Write-Verbose "Creating BgInfo logon task"
+                Invoke-Command -ComputerName $MachineName -ScriptBlock {
+                    $libDir = "$env:ProgramData\chocolatey\lib\bginfo\tools"                    
+                    $action = New-ScheduledTaskAction -Execute "$libDir\bginfo.exe" -Argument "$libDir\BGInfoConfig.bgi /TIMER:0 /silent /accepteula" -WorkingDirectory $libDir;
+                    $trigger =  New-ScheduledTaskTrigger -AtLogOn;
+                    Register-ScheduledTask -Action $action -Trigger $trigger -TaskName 'BgInfo' -Description 'Paint bginfo'
+
                 }
             }              
         }
 
-        if($Version2012OrLater) {
-            Write-Verbose "Empty Recycle bin"
-            invoke-command -Session $VMGuestSession {Clear-RecycleBin -DriveLetter C -Force -ErrorAction SilentlyContinue }
-        }
+        Write-Verbose "Empty Recycle bin"
+        invoke-command -Session $VMGuestSession {Clear-RecycleBin -DriveLetter C -Force -ErrorAction SilentlyContinue }
 
         Write-Verbose "Shutting down so we can take a checkpoint"
         Stop-Computer -ComputerName $MachineName -Confirm:$false 

@@ -12,3 +12,4 @@ CreateBaseVM/*
 .vscode/*
 DeleteVM.txt
 ServerConfig/*
+TestHarness.ps1
