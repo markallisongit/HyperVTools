@@ -10,6 +10,6 @@ Function Join-Domain
      
     Invoke-Command -ComputerName $IpAddress -Credential $GoldenImageAdminCred -scriptblock { Add-Computer -DomainName $using:domain -OUPath $using:ou -Credential $using:DomainJoinCred }
     Write-Verbose "Rebooting"
-    Restart-Computer -ComputerName $IpAddress -Wait -For WinRM -Protocol WSMan -Credential $GoldenImageAdminCred -Force         
+    Restart-Computer -ComputerName $IpAddress -Wait -For WinRM -Protocol WSMan -Credential $DomainJoinCred -Force         
     
 }

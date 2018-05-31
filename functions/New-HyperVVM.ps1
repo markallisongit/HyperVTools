@@ -223,7 +223,7 @@ PROCESS
         if($DataVHDMaxSize)
         {
             Write-Verbose "Formatting data drive and making ready for first use"
-            Invoke-Command -Session $Session { 
+            Invoke-Command -Session $VMGuestSession { 
                 Get-Disk | 
                 Where-Object PartitionStyle -eq 'RAW' | 
                 Initialize-Disk -PartitionStyle GPT -PassThru | 
@@ -233,7 +233,7 @@ PROCESS
         
         if ($InstallChocolatey -eq "Y")
         {
-            invoke-command -Session $Session { Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression }
+            invoke-command -Session $VMGuestSession { Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression }
 
             foreach ($package in $ChocolateyPackages)
             {
