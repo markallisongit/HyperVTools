@@ -217,8 +217,8 @@ PROCESS
         $VMGuestSession = New-PSSession -ComputerName $MachineName -Credential $DomainJoinCred
 
         Write-Verbose "Configuring VM $MachineName"
-        ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
-        Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Force            
+        ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity -Credential $DomainJoinCred
+        Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Force -Credential $DomainJoinCred            
 
         if($DataVHDMaxSize)
         {
@@ -260,7 +260,7 @@ PROCESS
         invoke-command -Session $VMGuestSession {Clear-RecycleBin -DriveLetter C -Force -ErrorAction SilentlyContinue }
 
         Write-Verbose "Shutting down so we can take a checkpoint"
-        Stop-Computer -ComputerName $MachineName -Confirm:$false 
+        Stop-Computer -ComputerName $MachineName -Confirm:$false -Credential $DomainJoinCred
         do {
             Start-Sleep -Seconds 1
         } until ((Invoke-Command -Session $VMHostSession { (Get-VM -Name $using:VMName).State }).Value -eq "Off")
