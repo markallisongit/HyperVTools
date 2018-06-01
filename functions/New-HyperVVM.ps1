@@ -217,7 +217,7 @@ PROCESS
         $VMGuestSession = New-PSSession -ComputerName $MachineName -Credential $DomainJoinCred
 
         Write-Verbose "Configuring VM $MachineName"
-        ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity -Credential $DomainJoinCred
+        ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
         Start-DscConfiguration -Wait -Verbose -Path .\ServerConfig\ -Force -Credential $DomainJoinCred            
 
         if($DataVHDMaxSize)
