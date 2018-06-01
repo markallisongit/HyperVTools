@@ -214,7 +214,7 @@ PROCESS
         }
       
         Write-Verbose "Create admin session to $MachineName"
-        $VMGuestSession = New-PSSession -ComputerName $MachineName
+        $VMGuestSession = New-PSSession -ComputerName $MachineName -Credential $DomainJoinCred
 
         Write-Verbose "Configuring VM $MachineName"
         ServerConfig -MachineName $MachineName -IsCore $IsCore -SNMPManager $SNMPManager -SNMPCommunity $SNMPCommunity
