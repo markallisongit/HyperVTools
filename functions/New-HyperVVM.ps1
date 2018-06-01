@@ -64,6 +64,9 @@ PROCESS
         {
             throw "This script must be run as Administrator"
         }
+
+        $RunStateTimeoutMinutes = 2
+
         # check for xHyper-V module, and install if missing   
         Install-DscResourceModule "xHyper-V"
         
@@ -260,10 +263,11 @@ PROCESS
         invoke-command -Session $VMGuestSession {Clear-RecycleBin -DriveLetter C -Force -ErrorAction SilentlyContinue }
 
         Write-Verbose "Shutting down so we can take a checkpoint"
+        $RunStateChangeTime = Get-Date
         Stop-Computer -ComputerName $MachineName -Confirm:$false -Credential $DomainJoinCred
         do {
             Start-Sleep -Seconds 1
-        } until ((Invoke-Command -Session $VMHostSession { (Get-VM -Name $using:VMName).State }).Value -eq "Off")
+        } until ((Invoke-Command -Session $VMHostSession { (Get-VM -Name $using:VMName).State }).Value -eq "Off" -and $RunStateChangeTime.AddMinutes($RunStateTimeoutMinutes) -gt (Get-Date))
 
         if ($DisableTimeSynchronization -eq "Y")
         {
@@ -285,9 +289,13 @@ PROCESS
                     Start-VM -Name $using:VMName
                 }
             }
-
+            
+            $RunStateChangeTime = Get-Date
             # wait for WinRM                
-            while ((Invoke-Command -ComputerName $MachineName {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 1}       
+            while ((Invoke-Command -ComputerName $MachineName {"Test"} -ErrorAction SilentlyContinue) -ne "Test" -and $RunStateChangeTime.AddMinutes($RunStateTimeoutMinutes) -gt (Get-Date)) 
+            {
+                Start-Sleep -Seconds 1
+            }       
             
             if ($Runstate -eq "Saved") {
                 Invoke-Command -Session $VMHostSession { Save-VM -Name $using:VMName }
