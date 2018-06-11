@@ -6,7 +6,7 @@ param
     [Parameter(Position = 1, Mandatory = $true)]
     [string]$VMName,
     [Parameter(Position = 2, Mandatory = $false)]
-    [[System.Management.Automation.PSCredential]]$Credentials
+    [System.Management.Automation.PSCredential]$Credentials
 )
 
 # wrapper for automation
