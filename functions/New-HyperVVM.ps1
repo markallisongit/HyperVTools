@@ -139,6 +139,7 @@ PROCESS
             -SwitchName $SwitchName `
             -VHDPath $VHDPath `
             -Generation $Generation `
+            -Notes $Notes `
             -WaitForIp:$WaitForIp `
             -State "Off" `
             -Verbose:$verbose
