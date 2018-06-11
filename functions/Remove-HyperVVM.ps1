@@ -13,11 +13,8 @@ The network name of the Hyper-V host where the VM resides.
 .PARAMETER VMName
 The name of the VM on the Hyper-V host. NOTE: this will likely not be the same name as the network name of the VM. It is the name of the virtual machine.
 
-.PARAMETER HyperVAdminCredentialsPath
-Removing a Hyper-V VM requires admin credentials. This is the path to the credentials file. If they don't exist you can create them with Export-Credentials
-
-.PARAMETER Verbose
-Shows details of the build, if omitted minimal information is output.
+.PARAMETER HyperVAdminCredentials
+Removing a Hyper-V VM requires admin credentials. This is a credentials object
 
 .NOTES
 Author: Mark Allison
@@ -48,7 +45,8 @@ param (
     [string]$VMName,
 
     [Parameter(Mandatory)]
-    [string]$HyperVAdminCredentialsPath
+    [ValidateNotNull()]
+    [System.Management.Automation.PSCredential]$HyperVAdminCredentials
 )
 
 PROCESS
@@ -56,7 +54,6 @@ PROCESS
     $verbose = $VerbosePreference -ne 'SilentlyContinue'
     $DebugPreference = "Continue"
 
-    $HyperVAdminCredentials = Read-CredentialsFromFile $HyperVAdminCredentialsPath
     $VMExists = Test-HyperVVM -VMHost $VMHostName -VMName $VMName -Credential $HyperVAdminCredentials 
     Write-Debug "VM Exists: $VMExists"
     if ($VMExists)

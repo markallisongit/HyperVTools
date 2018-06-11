@@ -29,6 +29,9 @@ Configuration CreateBaseVM
         [Parameter(Mandatory)]
         [int]$Generation,
 
+        [Parameter(Mandatory)]
+        [string]$Notes,        
+
         [Parameter(Mandatory=$false)]
         [string]$VHDPath="E:\VHDs",
 
@@ -60,6 +63,7 @@ Configuration CreateBaseVM
             ProcessorCount  = $ProcessorCount
             RestartIfNeeded = $true
             WaitForIP       = $WaitForIP 
+            Notes           = $Notes
         }
     }
 }

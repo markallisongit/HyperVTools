@@ -37,12 +37,17 @@ Test-HyperVVM -VMHostName HyperV -VMName NyVM -Credential (Get-Credential)
         [string]$VMHostName, 
         
         [Parameter(Mandatory = $true)]
-        [string]$VMName
+        [string]$VMName,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [System.Management.Automation.PSCredential]$Credential
     )
+    
     PROCESS
     {
         $exists = $false
-        if (Invoke-Command -ComputerName $VMHostName { Get-VM -Name $using:VMName -ErrorAction SilentlyContinue } )
+        if (Invoke-Command -ComputerName $VMHostName -Credential $Cred { Get-VM -Name $using:VMName -ErrorAction SilentlyContinue } )
         {
             $exists = $true
         }

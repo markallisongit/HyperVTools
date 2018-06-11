@@ -105,7 +105,7 @@ PROCESS
         $VMHostSession = New-PSSession -ComputerName $VMHostName -Name "VMHostSession"     # create an admin session to the VMHost
         
         Write-Verbose "Checking to see if $VMName already exists on $VMHostName"
-        if(Test-HyperVVM $VMHostName $VMName)
+        if(Test-HyperVVM $VMHostName $VMName $DomainJoinCred)
         {
             throw "VM $VMName already exists on host $VMHostName. Choose a different name."
         }
@@ -139,6 +139,7 @@ PROCESS
             -SwitchName $SwitchName `
             -VHDPath $VHDPath `
             -Generation $Generation `
+            -Notes $Notes `
             -WaitForIp:$WaitForIp `
             -State "Off" `
             -Verbose:$verbose
