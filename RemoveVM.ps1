@@ -11,4 +11,4 @@ param
 
 # wrapper for automation
 Import-Module .\HyperVTools.psd1 -Force
-New-HyperVVM Remove-HyperVVM -VMHostName $VMHostName -VMName $VMName -HyperVAdminCredentials $Credentials
+Remove-HyperVVM -VMHostName $VMHostName -VMName $VMName -HyperVAdminCredentials $Credentials
