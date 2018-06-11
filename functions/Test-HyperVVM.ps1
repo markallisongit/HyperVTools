@@ -13,9 +13,6 @@ The network name of the Hyper-V host where the VM resides.
 .PARAMETER VMName
 The name of the VM on the Hyper-V host. NOTE: this will likely not be the same name as the network name of the VM. It is the name of the virtual machine.
 
-.PARAMETER Credential
-This credential must have Hyper-V Administrator rights on the target Hyper-V Host.
-
 .NOTES
 Author: Mark Allison
 
@@ -40,15 +37,12 @@ Test-HyperVVM -VMHostName HyperV -VMName NyVM -Credential (Get-Credential)
         [string]$VMHostName, 
         
         [Parameter(Mandatory = $true)]
-        [string]$VMName,
-
-        [Parameter(Mandatory = $true)]
-        [System.Management.Automation.PSCredential]$Credential
+        [string]$VMName
     )
     PROCESS
     {
         $exists = $false
-        if (Invoke-Command -ComputerName $VMHostName -Credential $Credential { Get-VM -Name $using:VMName -ErrorAction SilentlyContinue } )
+        if (Invoke-Command -ComputerName $VMHostName { Get-VM -Name $using:VMName -ErrorAction SilentlyContinue } )
         {
             $exists = $true
         }
