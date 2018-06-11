@@ -51,7 +51,6 @@ param (
 
 PROCESS
 {
-    $verbose = $VerbosePreference -ne 'SilentlyContinue'
     $DebugPreference = "Continue"
 
     $VMExists = Test-HyperVVM -VMHost $VMHostName -VMName $VMName -Credential $HyperVAdminCredentials 
@@ -74,8 +73,6 @@ PROCESS
         $NumDisks = Invoke-Command -Session $VMHostSession { (Get-VMHardDiskDrive -VMName $using:VMName).Count }
         Write-Verbose "Found $NumDisks hard disks on $VMName"
         
-        $FailedToRemoveCheckpoints = $false
-
         Write-Verbose "Merging Checkpoints"
         try {
             Invoke-Command -Session $VMHostSession { Get-VM $using:VMName | Stop-VM -Passthru | Get-VMSnapshot | Remove-VMSnapshot } -ErrorAction Stop
