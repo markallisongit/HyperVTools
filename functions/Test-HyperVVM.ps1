@@ -41,7 +41,7 @@ Test-HyperVVM -VMHostName HyperV -VMName NyVM -Credential (Get-Credential)
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNull()]
-        [System.Management.Automation.PSCredential]$Credential]
+        [System.Management.Automation.PSCredential]$Credential
     )
     
     PROCESS
